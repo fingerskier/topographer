@@ -1,5 +1,5 @@
 {
-  "name": "treasuremap",
+  "name": "topographer",
   "version": "0.1.0",
   "description": "Visualize repo changes as a collapsible dependency graph in a single HTML file.",
   "keywords": [
