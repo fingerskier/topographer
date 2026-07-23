@@ -8,7 +8,7 @@
  * `dynamic` (a `import(...)` expression) or not (static `import`/`require`).
  *
  * This is intentionally a lightweight lexical scan rather than a full parser:
- * treasuremap has zero runtime dependencies so it stays fast under `npx`.
+ * topographer has zero runtime dependencies so it stays fast under `npx`.
  *
  * @param {string} source File contents.
  * @returns {Array<{specifier: string, dynamic: boolean}>}

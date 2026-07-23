@@ -12,7 +12,7 @@
   "license": "Apache-2.0",
   "type": "commonjs",
   "bin": {
-    "treasuremap": "bin/treasuremap.js"
+    "topographer": "bin/topographer.js"
   },
   "main": "src/index.js",
   "files": [
@@ -21,13 +21,13 @@
   ],
   "scripts": {
     "test": "node --test",
-    "start": "node bin/treasuremap.js"
+    "start": "node bin/topographer.js"
   },
   "engines": {
     "node": ">=16"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fingerskier/treasure-map.git"
+    "url": "git+https://github.com/fingerskier/topographer.git"
   }
 }

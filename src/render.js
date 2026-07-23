@@ -22,7 +22,7 @@ function renderHtml(graph, meta = {}) {
     .replace(/>/g, '\\u003e')
     .replace(/&/g, '\\u0026');
 
-  const title = 'treasuremap — ' + escapeHtml(graph.root || meta.root || 'dependency graph');
+  const title = 'topographer — ' + escapeHtml(graph.root || meta.root || 'dependency graph');
 
   return `<!doctype html>
 <html lang="en">
@@ -34,7 +34,7 @@ function renderHtml(graph, meta = {}) {
 </head>
 <body>
 <header id="bar">
-  <div class="brand">🗺️ <strong>treasuremap</strong> <span class="root">${escapeHtml(
+  <div class="brand">🗺️ <strong>topographer</strong> <span class="root">${escapeHtml(
     graph.root || ''
   )}</span></div>
   <div class="controls">

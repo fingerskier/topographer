@@ -21,7 +21,7 @@ Edge style:
 Run the script in the repo root:
 
 ```
-npx treasuremap
+npx topographer
 ```
 
 Output is a single `map.html`.
