@@ -1,0 +1,10 @@
+node_modules/
+package-lock.json
+
+# Generated output
+map.html
+
+# Scratch / local artifacts
+scratch-*
+*.log
+.DS_Store
