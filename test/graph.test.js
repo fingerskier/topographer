@@ -13,7 +13,7 @@ const { buildGraph } = require('../src/index.js');
 const { renderHtml } = require('../src/render.js');
 
 function tmpdir() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'treasure-map-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'treasuremap-test-'));
 }
 
 function write(root, rel, content) {

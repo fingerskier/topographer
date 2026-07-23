@@ -1,4 +1,4 @@
-# treasure-map
+# treasuremap
 
 Visualization of repo changes.
 
@@ -21,7 +21,7 @@ Edge style:
 Run the script in the repo root:
 
 ```
-npx treasure-map
+npx treasuremap
 ```
 
 Output is a single `map.html`.

@@ -1,5 +1,5 @@
 {
-  "name": "treasure-map",
+  "name": "treasuremap",
   "version": "0.1.0",
   "description": "Visualize repo changes as a collapsible dependency graph in a single HTML file.",
   "keywords": [
@@ -12,7 +12,7 @@
   "license": "Apache-2.0",
   "type": "commonjs",
   "bin": {
-    "treasure-map": "bin/treasure-map.js"
+    "treasuremap": "bin/treasuremap.js"
   },
   "main": "src/index.js",
   "files": [
@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "test": "node --test",
-    "start": "node bin/treasure-map.js"
+    "start": "node bin/treasuremap.js"
   },
   "engines": {
     "node": ">=16"

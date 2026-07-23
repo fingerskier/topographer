@@ -37,10 +37,10 @@ function parseArgs(argv) {
   return opts;
 }
 
-const HELP = `treasure-map — a collapsible dependency graph of a codebase.
+const HELP = `treasuremap — a collapsible dependency graph of a codebase.
 
 Usage:
-  npx treasure-map [options] [root]
+  npx treasuremap [options] [root]
 
 Options:
   -o, --out <file>    Output HTML file (default: map.html)
@@ -76,13 +76,13 @@ function main() {
   try {
     const { outPath: written, stats } = run({ root, outPath });
     process.stdout.write(
-      `treasure-map: wrote ${path.relative(process.cwd(), written) || written}\n` +
+      `treasuremap: wrote ${path.relative(process.cwd(), written) || written}\n` +
         `  ${stats.nodes} files, ${stats.edges} dependencies` +
         (stats.git ? ` (git repo)` : ` (not a git repo — everything treated as this commit)`) +
         `\n`
     );
   } catch (err) {
-    process.stderr.write(`treasure-map: ${err && err.message ? err.message : err}\n`);
+    process.stderr.write(`treasuremap: ${err && err.message ? err.message : err}\n`);
     process.exitCode = 1;
   }
 }
