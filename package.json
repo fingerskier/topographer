@@ -1,6 +1,6 @@
 {
   "name": "topographer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Visualize repo changes as a collapsible dependency graph in a single HTML file.",
   "keywords": [
     "dependency-graph",
