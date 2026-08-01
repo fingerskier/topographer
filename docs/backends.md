@@ -68,7 +68,7 @@ Each function record captures metadata for CRAP scoring and visualization:
 }
 ```
 
-- **`id`** must be unique within a file and reproducible across runs
+- **`id`** must be unique within a file and reproducible across runs. When two functions would otherwise produce the same `file#name@line` (e.g. two anonymous callbacks starting on the same line), the first occurrence in AST-walk order keeps the plain id and each subsequent colliding occurrence gets an occurrence-ordinal suffix: `~2`, `~3`, ... (e.g. `a.js#<anonymous>@1` and `a.js#<anonymous>@1~2`). AST-walk order is deterministic, so the suffixes are stable across runs.
 - **`name`** is inferred from context: function declaration name, variable name, property name, or `'<anonymous>'`
 - **`startLine` and `endLine`** use 1-based line numbering (as reported by AST and coverage tools)
 - **`cc` (cyclomatic complexity)** is the count of decision points + 1 (base 1)

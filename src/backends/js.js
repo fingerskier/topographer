@@ -124,7 +124,7 @@ function parseTs(ts, relPath, source) {
   };
   visit(sf);
   const functions = Array.from(records.values());
-  for (const f of functions) f.id = `${relPath}#${f.name}@${f.startLine}`;
+  assignIds(functions, relPath);
   functions.sort((a, b) => a.startLine - b.startLine || a.id.localeCompare(b.id));
   return {
     imports: Array.from(imports, ([specifier, dynamic]) => ({ specifier, dynamic })),
@@ -145,6 +145,23 @@ function parse(relPath, source, ctx) {
   if (!ts) return { imports: parseImports(source), functions: null, parser: 'regex' };
   try { return parseTs(ts, relPath, source); }
   catch (_e) { return { imports: parseImports(source), functions: null, parser: 'regex' }; }
+}
+
+/**
+ * Assign `id = file#name@line` to each record in AST-walk order, then
+ * disambiguate collisions (e.g. two same-line anonymous callbacks): the
+ * first occurrence keeps the plain id, later occurrences of the same id get
+ * an occurrence-ordinal suffix `~2`, `~3`, ... in walk order — deterministic
+ * and reproducible across runs.
+ */
+function assignIds(records, relPath) {
+  const seen = new Map(); // baseId -> next occurrence count
+  for (const f of records) {
+    const base = `${relPath}#${f.name}@${f.startLine}`;
+    const n = (seen.get(base) || 0) + 1;
+    seen.set(base, n);
+    f.id = n === 1 ? base : `${base}~${n}`;
+  }
 }
 
 const FN_TYPES = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
@@ -196,7 +213,7 @@ function functionsFromAst(ast, relPath) {
     }
   }, []);
   const out = Array.from(records.values());
-  for (const f of out) f.id = `${relPath}#${f.name}@${f.startLine}`;
+  assignIds(out, relPath);
   out.sort((a, b) => a.startLine - b.startLine || a.id.localeCompare(b.id));
   return out;
 }

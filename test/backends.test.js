@@ -119,3 +119,20 @@ test('missing typescript => regex fallback, null functions', () => {
   assert.strictEqual(out.functions, null);
   assert.strictEqual(out.imports[0].specifier, './a');
 });
+
+test('acorn backend: same-line anonymous functions get disambiguated ids', () => {
+  const src = 'xs.map(x => x ? 1 : 0).filter(x => x && x.y);';
+  const out = backendFor('a.js').parse('a.js', src, { root: '.' });
+  assert.strictEqual(out.functions.length, 2);
+  const ids = out.functions.map((f) => f.id).sort();
+  assert.deepStrictEqual(ids, ['a.js#<anonymous>@1', 'a.js#<anonymous>@1~2']);
+});
+
+test('typescript backend: same-line anonymous functions get disambiguated ids', () => {
+  const src = 'xs.map(x => x ? 1 : 0).filter(x => x && x.y);';
+  const out = require('../src/backends/index.js').backendFor('a.ts')
+    .parse('a.ts', src, { root: path.join(__dirname, '..') });
+  assert.strictEqual(out.functions.length, 2);
+  const ids = out.functions.map((f) => f.id).sort();
+  assert.deepStrictEqual(ids, ['a.ts#<anonymous>@1', 'a.ts#<anonymous>@1~2']);
+});

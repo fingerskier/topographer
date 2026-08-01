@@ -42,31 +42,62 @@ function loadIstanbul(json, root) {
   return out;
 }
 
+/**
+ * Merge one lcov SF-block's coverage into an accumulator FileCov: line hits
+ * take the max per line (matches the intra-block DA semantics), and branch
+ * counts take the max of `total`/`taken` per line rather than adding —
+ * repeated blocks for the same file (e.g. concatenated multi-suite lcov
+ * output) describe the *same* branches, so summing would overcount.
+ */
+function mergeFileCov(target, block) {
+  for (const [ln, hits] of block.lines) {
+    target.lines.set(ln, Math.max(target.lines.get(ln) || 0, hits));
+  }
+  for (const [ln, br] of block.branchesByLine) {
+    const cur = target.branchesByLine.get(ln) || { taken: 0, total: 0 };
+    cur.total = Math.max(cur.total, br.total);
+    cur.taken = Math.max(cur.taken, br.taken);
+    target.branchesByLine.set(ln, cur);
+  }
+}
+
 function loadLcov(text, root) {
   const out = new Map();
-  let fc = null;
+  let block = null; // fresh per-SF-block accumulator; merged into `out` at end_of_record
+  let key = null;
   let sawRecord = false;
+  const flush = () => {
+    if (block && key) {
+      const existing = out.get(key) || emptyFileCov();
+      mergeFileCov(existing, block);
+      out.set(key, existing);
+    }
+    block = null;
+    key = null;
+  };
   for (const raw of text.split(/\r?\n/)) {
     const lineStr = raw.trim();
     if (lineStr.startsWith('SF:')) {
-      fc = emptyFileCov();
-      out.set(toPosixRel(lineStr.slice(3), root), fc);
+      flush(); // tolerate a missing end_of_record before the next SF:
+      block = emptyFileCov();
+      key = toPosixRel(lineStr.slice(3), root);
       sawRecord = true;
-    } else if (fc && lineStr.startsWith('DA:')) {
+    } else if (block && lineStr.startsWith('DA:')) {
       const [ln, hits] = lineStr.slice(3).split(',').map(Number);
-      fc.lines.set(ln, Math.max(fc.lines.get(ln) || 0, hits));
-    } else if (fc && lineStr.startsWith('BRDA:')) {
+      block.lines.set(ln, Math.max(block.lines.get(ln) || 0, hits));
+    } else if (block && lineStr.startsWith('BRDA:')) {
       const parts = lineStr.slice(5).split(',');
       const ln = Number(parts[0]);
       const taken = parts[3] === '-' ? 0 : Number(parts[3]);
-      const cur = fc.branchesByLine.get(ln) || { taken: 0, total: 0 };
+      const cur = block.branchesByLine.get(ln) || { taken: 0, total: 0 };
       cur.total++;
       if (taken > 0) cur.taken++;
-      fc.branchesByLine.set(ln, cur);
+      block.branchesByLine.set(ln, cur);
     } else if (lineStr === 'end_of_record') {
-      fc = null;
+      flush();
     }
   }
+  flush(); // tolerate a missing trailing end_of_record
   return sawRecord ? out : null;
 }
 
