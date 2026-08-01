@@ -9,20 +9,46 @@ const { getGitStatus } = require('./git.js');
 const { renderHtml } = require('./render.js');
 const { backendFor } = require('./backends/index.js');
 const { loadTs } = require('./backends/js.js');
+const { loadCoverage } = require('./coverage.js');
+const { buildDataset, buildAnnotations } = require('./crap.js');
 
 /**
  * Build the dependency graph for a repo and write it to an HTML file.
  *
- * @param {{ root: string, outPath: string }} options
+ * @param {{ root: string, outPath: string, crap?: boolean, coveragePath?: string|null }} options
  * @returns {{ outPath: string, graph: object, stats: object }}
  */
-function run({ root, outPath }) {
+function run({ root, outPath, crap = false, coveragePath = null }) {
   if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
     throw new Error(`not a directory: ${root}`);
   }
 
   const graph = buildGraph(root);
-  const html = renderHtml(graph, { root });
+
+  let annotations = null;
+  let crapStats = null;
+  if (crap) {
+    const covFile = resolveCoverage(root, coveragePath); // throws if explicit path given and unusable
+    const coverage = covFile ? loadCoverage(covFile, root) : null;
+    const records = buildDataset({ functionsByFile: graph.functionsByFile, coverage });
+    annotations = buildAnnotations(records);
+
+    const crapDir = path.join(path.dirname(outPath), '.crap');
+    fs.mkdirSync(crapDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(crapDir, 'dataset.jsonl'),
+      records.map((r) => JSON.stringify(r)).join('\n') + '\n',
+      'utf8'
+    );
+    crapStats = {
+      functions: records.length,
+      scored: records.filter((r) => r.crap !== null).length,
+      aboveThreshold: records.filter((r) => r.flags.includes('above_threshold')).length,
+      coverageFile: covFile,
+    };
+  }
+
+  const html = renderHtml(graph, { root, annotations });
   fs.writeFileSync(outPath, html, 'utf8');
 
   const topoPath = path.join(path.dirname(outPath), 'topo.json');
@@ -33,6 +59,7 @@ function run({ root, outPath }) {
     root: graph.root,
     manifest: graph.manifest,
   };
+  if (annotations !== null) topo.annotations = annotations;
   fs.writeFileSync(topoPath, JSON.stringify(topo, null, 2) + '\n', 'utf8');
 
   return {
@@ -44,8 +71,21 @@ function run({ root, outPath }) {
       edges: graph.links.length,
       git: graph.git,
       manifest: graph.manifest,
+      crap: crapStats,
     },
   };
+}
+
+function resolveCoverage(root, coveragePath) {
+  if (coveragePath) {
+    if (!fs.existsSync(coveragePath)) throw new Error(`coverage file not found: ${coveragePath}`);
+    return coveragePath; // format errors surface from loadCoverage
+  }
+  for (const candidate of ['coverage/coverage-final.json', 'coverage/lcov.info']) {
+    const p = path.join(root, candidate);
+    if (fs.existsSync(p)) return p;
+  }
+  return null; // no coverage — still score CC, all functions no_coverage_data
 }
 
 /**

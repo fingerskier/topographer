@@ -25,6 +25,12 @@ function parseArgs(argv) {
       case '--root':
         opts.root = argv[++i];
         break;
+      case '--crap':
+        opts.crap = true;
+        break;
+      case '--coverage':
+        opts.coverage = argv[++i];
+        break;
       default:
         // A bare argument is treated as the root directory.
         if (!arg.startsWith('-')) {
@@ -45,6 +51,9 @@ Usage:
 Options:
   -o, --out <file>    Output HTML file (default: map.html)
   -r, --root <dir>    Repo root to scan (default: current directory)
+  --crap              Annotate functions with CRAP scores (CC² × (1−cov)³ + CC)
+  --coverage <file>   Coverage report (Istanbul coverage-final.json or LCOV);
+                      default: auto-detect under coverage/
   -v, --version       Print version and exit
   -h, --help          Show this help
 
@@ -74,12 +83,20 @@ function main() {
   const outPath = path.isAbsolute(opts.out) ? opts.out : path.join(root, opts.out);
 
   try {
-    const { outPath: written, stats } = run({ root, outPath });
+    const { outPath: written, stats } = run({
+      root,
+      outPath,
+      crap: !!opts.crap,
+      coveragePath: opts.coverage ? path.resolve(opts.coverage) : null,
+    });
     process.stdout.write(
       `topographer: wrote ${path.relative(process.cwd(), written) || written}\n` +
         `  ${stats.nodes} files, ${stats.edges} dependencies` +
         (stats.git ? ` (git repo)` : ` (not a git repo — everything treated as this commit)`) +
-        `\n`
+        `\n` +
+        (stats.crap ? `  CRAP: ${stats.crap.scored}/${stats.crap.functions} functions scored, ` +
+          `${stats.crap.aboveThreshold} above threshold` +
+          (stats.crap.coverageFile ? `` : ` (no coverage data found)`) + `\n` : ``)
     );
   } catch (err) {
     process.stderr.write(`topographer: ${err && err.message ? err.message : err}\n`);
