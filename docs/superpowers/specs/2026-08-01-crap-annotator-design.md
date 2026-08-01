@@ -70,6 +70,12 @@ parent.
   crap, threshold_coverage, flags[] }`.
   Deterministic: stable ids (`file#name@startLine`), sorted crap desc, nulls
   last.
+- `threshold_coverage` = minimum coverage that brings this function's CRAP
+  under 30 at its current CC (null when no coverage level can, i.e.
+  `refactor_only`).
+- `annotations` in `topo.json` = per-node roll-up: `{ maxCrap,
+  aboveThresholdCount, coverageKind }` keyed by node id — exactly what the
+  risk view needs, nothing more.
 
 ## CLI
 
