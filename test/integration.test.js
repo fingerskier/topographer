@@ -86,3 +86,20 @@ test('explicit bad --coverage path throws with hint', () => {
     /unrecognized coverage format/
   );
 });
+
+test('map.html embeds annotations and risk toggle only when --crap', () => {
+  const dir = tmpRepo({
+    'src/a.js': 'function f(x) { return x ? 1 : 2; }\nmodule.exports = f;\n',
+    'coverage/lcov.info': ['SF:src/a.js', 'DA:1,1', 'end_of_record', ''].join('\n'),
+  });
+  const out = path.join(dir, 'map.html');
+  run({ root: dir, outPath: out, crap: true, coveragePath: null });
+  const html = fs.readFileSync(out, 'utf8');
+  assert.ok(html.includes('var ANNOTATIONS'));
+  assert.ok(html.includes('riskToggle'));
+  assert.ok(html.includes('class="halo"') || html.includes("'halo'") || html.includes('"halo"'));
+
+  run({ root: dir, outPath: out }); // without crap
+  const plain = fs.readFileSync(out, 'utf8');
+  assert.ok(!plain.includes('riskToggle'));
+});

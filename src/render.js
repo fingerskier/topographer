@@ -7,10 +7,15 @@
  * opens offline with no network access and no external dependencies.
  *
  * @param {object} graph  { nodes, links, git, root }
- * @param {object} [meta] { root }
+ * @param {object} [meta] { root, annotations } — annotations is
+ *   `{ [file]: { maxCrap, aboveThresholdCount, coverageKind } }` (from
+ *   `buildAnnotations`) or null when `--crap` wasn't requested.
  * @returns {string} Full HTML document.
  */
 function renderHtml(graph, meta = {}) {
+  const annotations = meta.annotations || null;
+  const hasAnnotations = annotations !== null;
+
   const data = JSON.stringify({
     nodes: graph.nodes,
     links: graph.links,
@@ -21,6 +26,27 @@ function renderHtml(graph, meta = {}) {
     .replace(/</g, '\\u003c')
     .replace(/>/g, '\\u003e')
     .replace(/&/g, '\\u0026');
+
+  const annotationsData = JSON.stringify(annotations || {})
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026');
+
+  // The risk-toggle button + its event wiring only make sense when there's
+  // risk data to show; keep the *literal* "riskToggle" id out of the emitted
+  // HTML entirely when annotations is null (tests assert on its absence).
+  const riskToggleButton = hasAnnotations
+    ? '<button id="riskToggle" type="button" title="Toggle risk view">Risk view</button>'
+    : '';
+  const riskLegend = hasAnnotations
+    ? `<div class="legend-group" id="riskLegend">
+    <span class="legend-title">Risk</span>
+    <span class="swatch"><i class="dot" style="background:#e25822"></i>heat = max CRAP in file</span>
+    <span class="swatch"><i class="dot halo-dot"></i>dashed = no coverage data</span>
+  </div>`
+    : '';
+  const riskToggleScript = hasAnnotations ? RISK_TOGGLE_SCRIPT : '';
+  const scriptBody = SCRIPT.replace('/*__RISK_TOGGLE_HOOK__*/', riskToggleScript);
 
   const title = 'topographer — ' + escapeHtml(graph.root || meta.root || 'dependency graph');
 
@@ -41,6 +67,7 @@ function renderHtml(graph, meta = {}) {
     <input id="search" type="search" placeholder="Filter files…" autocomplete="off" spellcheck="false">
     <button id="expandAll" type="button" title="Expand every node">Expand all</button>
     <button id="collapseAll" type="button" title="Collapse every node">Collapse all</button>
+    ${riskToggleButton}
     <button id="reset" type="button" title="Re-run the layout">Re-layout</button>
   </div>
 </header>
@@ -58,13 +85,15 @@ function renderHtml(graph, meta = {}) {
     <span class="swatch"><i class="edge dashed"></i>dynamic import</span>
   </div>
   <div class="legend-hint">Click a node to collapse its dependencies · drag to move · scroll to zoom</div>
+  ${riskLegend}
 </aside>
 <svg id="graph"><g id="viewport"><g id="links"></g><g id="nodes"></g></g></svg>
 <div id="tooltip" hidden></div>
 <div id="empty" hidden>No source files found to map.</div>
 <script>
 const GRAPH = ${data};
-${SCRIPT}
+var ANNOTATIONS = ${annotationsData};
+${scriptBody}
 </script>
 </body>
 </html>
@@ -157,6 +186,12 @@ body {
   transition: opacity .1s;
 }
 .node.dim text { opacity: .15; }
+.halo { pointer-events: none; }
+body:not(.risk-mode) .halo { display: none; }
+.halo.nodata { stroke: #8a8f98; stroke-dasharray: 3 3; fill: none; }
+#riskLegend { display: none; }
+body.risk-mode #riskLegend { display: flex; }
+.dot.halo-dot { background: transparent; border: 1px dashed #8a8f98; }
 .badge { fill: #0b0f18; }
 .badge-text { fill: #fff; font-size: 8px; font-weight: 700; stroke: none; }
 #tooltip {
@@ -187,7 +222,8 @@ const SCRIPT = String.raw`
 
   var nodes = GRAPH.nodes.map(function (n, i) {
     return { i: i, id: n.id, label: n.label, dir: n.dir, status: n.status,
-             x: 0, y: 0, vx: 0, vy: 0, fx: null, fy: null };
+             x: 0, y: 0, vx: 0, vy: 0, fx: null, fy: null,
+             _risk: ANNOTATIONS[n.id] || null };
   });
   var links = GRAPH.links.map(function (l) {
     return { source: nodes[l.source], target: nodes[l.target], dynamic: !!l.dynamic };
@@ -207,6 +243,7 @@ const SCRIPT = String.raw`
   });
 
   var collapsed = new Set();
+  var riskMode = false;
 
   // Roots drive the visibility BFS. A node with no incoming edge is a root;
   // if the graph is fully cyclic, treat every node as a root so nothing is
@@ -262,6 +299,10 @@ const SCRIPT = String.raw`
   nodes.forEach(function (n) {
     var g = document.createElementNS(SVGNS, "g");
     g.setAttribute("class", "node status-" + n.status);
+    // Halo goes in first so it paints behind the main circle.
+    var halo = document.createElementNS(SVGNS, "circle");
+    halo.setAttribute("class", "halo");
+    g.appendChild(halo);
     var c = document.createElementNS(SVGNS, "circle");
     c.setAttribute("r", nodeRadius(n));
     var text = document.createElementNS(SVGNS, "text");
@@ -290,6 +331,7 @@ const SCRIPT = String.raw`
     g.appendChild(badge);
 
     n._el = g;
+    n._halo = halo;
     n._circle = c;
     n._text = text;
     n._badge = badge;
@@ -320,7 +362,7 @@ const SCRIPT = String.raw`
       n._el.classList.toggle("collapsed", isCollapsed);
       if (isCollapsed) {
         n._badge.style.display = "";
-        n._badgeText.textContent = String(outgoing[n.i].length);
+        n._badgeText.textContent = badgeTextFor(n);
       } else {
         n._badge.style.display = "none";
       }
@@ -533,6 +575,74 @@ const SCRIPT = String.raw`
     refreshVisibility();
   }
 
+  // ---- risk view ------------------------------------------------------------
+  // CRAP 300 saturates the 0..1 heat scale (matches the CRAP dataset's
+  // documented "above threshold" ceiling used elsewhere in the toolchain).
+  var CRAP_SATURATION = Math.log(1 + 300);
+  function riskScale(crap) {
+    return Math.min(1, Math.log(1 + crap) / CRAP_SATURATION);
+  }
+
+  function updateHalo(n) {
+    var r = n._risk;
+    var baseR = nodeRadius(n);
+    if (r && r.maxCrap !== null) {
+      var scale = riskScale(r.maxCrap);
+      n._halo.classList.remove("nodata");
+      n._halo.setAttribute("r", (baseR + 3 + 9 * scale).toFixed(2));
+      n._halo.setAttribute("fill", "#e25822");
+      n._halo.removeAttribute("stroke");
+      n._halo.style.opacity = (0.25 + 0.55 * scale).toFixed(2);
+    } else {
+      // No numeric CRAP for this file (unscored, or no coverage data at all)
+      // — visibly distinct from a real 0%-covered function, which still has
+      // a numeric crap score and gets a heat halo.
+      n._halo.classList.add("nodata");
+      n._halo.setAttribute("r", (baseR + 3).toFixed(2));
+      n._halo.removeAttribute("fill");
+      n._halo.style.opacity = "";
+    }
+  }
+
+  // Roll up risk over the subtree that becomes hidden when n collapses:
+  // max CRAP wins (never mean — a single hot function shouldn't get diluted
+  // by a pile of trivial ones), counts sum.
+  function hiddenSubtreeRisk(n) {
+    var seen = new Set();
+    var stack = outgoing[n.i].slice();
+    var maxCrap = null, count = 0;
+    while (stack.length) {
+      var i = stack.pop();
+      if (seen.has(i)) continue;
+      seen.add(i);
+      var r = nodes[i]._risk;
+      if (r) {
+        if (r.maxCrap !== null) maxCrap = maxCrap === null ? r.maxCrap : Math.max(maxCrap, r.maxCrap);
+        count += r.aboveThresholdCount || 0;
+      }
+      var outs = outgoing[i];
+      for (var k = 0; k < outs.length; k++) if (!seen.has(outs[k])) stack.push(outs[k]);
+    }
+    return { maxCrap: maxCrap, count: count };
+  }
+
+  function badgeTextFor(n) {
+    if (!riskMode) return String(outgoing[n.i].length);
+    var roll = hiddenSubtreeRisk(n);
+    if (roll.maxCrap === null) return "?";
+    return String(Math.round(roll.maxCrap)) + "!" + roll.count;
+  }
+
+  function refreshRisk() {
+    document.body.classList.toggle("risk-mode", riskMode);
+    nodes.forEach(function (n) {
+      updateHalo(n);
+      if (collapsed.has(n.i) && outgoing[n.i].length > 0) {
+        n._badgeText.textContent = badgeTextFor(n);
+      }
+    });
+  }
+
   // ---- highlight + tooltip ------------------------------------------------
   var STATUS_LABEL = {
     unchanged: "unchanged", added: "added", modified: "modified", deleted: "deleted",
@@ -622,6 +732,7 @@ const SCRIPT = String.raw`
     collapsed.clear();
     refreshVisibility();
   });
+  /*__RISK_TOGGLE_HOOK__*/
   document.getElementById("reset").addEventListener("click", function () {
     nodes.forEach(function (n, i) {
       var ang = (i / nodes.length) * Math.PI * 2;
@@ -638,8 +749,23 @@ const SCRIPT = String.raw`
   // ---- boot ---------------------------------------------------------------
   fitView();
   refreshVisibility();
+  refreshRisk();
   reheat(1);
 })();
+`;
+
+// Only wired up when annotations were provided (see renderHtml) — keeps the
+// literal "riskToggle" id out of plain (non --crap) output entirely, since
+// SCRIPT above is otherwise a single shared template for both cases.
+const RISK_TOGGLE_SCRIPT = String.raw`
+  var riskToggle = document.getElementById("riskToggle");
+  if (riskToggle) {
+    riskToggle.addEventListener("click", function () {
+      riskMode = !riskMode;
+      riskToggle.textContent = riskMode ? "Change view" : "Risk view";
+      refreshRisk();
+    });
+  }
 `;
 
 module.exports = { renderHtml };
