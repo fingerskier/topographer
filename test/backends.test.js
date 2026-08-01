@@ -91,3 +91,31 @@ test('loops, catch, nullish all count; anonymous gets placeholder name', () => {
   assert.strictEqual(out.functions[0].cc, 4); // base + for-of + catch + ??
   assert.ok(out.functions[0].name.length > 0);
 });
+
+const path = require('node:path');
+
+test('typescript backend parses .ts: imports + functions + cc', () => {
+  const src = [
+    "import { a } from './a.ts';",
+    'export function f(x: number): number {',
+    '  if (x > 0) return x;',
+    '  return x < 0 ? -x : 0;',
+    '}',
+  ].join('\n');
+  // This repo's own root has typescript (devDependency), so loadTs resolves here.
+  const out = require('../src/backends/index.js').backendFor('a.ts')
+    .parse('a.ts', src, { root: path.join(__dirname, '..') });
+  assert.strictEqual(out.parser, 'typescript');
+  assert.strictEqual(out.imports[0].specifier, './a.ts');
+  assert.strictEqual(out.functions.length, 1);
+  assert.strictEqual(out.functions[0].name, 'f');
+  assert.strictEqual(out.functions[0].cc, 3); // base + if + ternary
+});
+
+test('missing typescript => regex fallback, null functions', () => {
+  const out = require('../src/backends/index.js').backendFor('a.ts')
+    .parse('a.ts', "import { a } from './a';", { root: 'C:/definitely/no/ts/here' });
+  assert.strictEqual(out.parser, 'regex');
+  assert.strictEqual(out.functions, null);
+  assert.strictEqual(out.imports[0].specifier, './a');
+});

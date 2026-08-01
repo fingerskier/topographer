@@ -5,6 +5,18 @@ const { parseImports } = require('../parse.js');
 
 const JsxParser = acorn.Parser.extend(jsx());
 
+const tsCache = new Map(); // root -> ts module | null
+function loadTs(root) {
+  if (tsCache.has(root)) return tsCache.get(root);
+  let ts = null;
+  try {
+    const tsPath = require.resolve('typescript', { paths: [root] });
+    ts = require(tsPath);
+  } catch (_e) {}
+  tsCache.set(root, ts);
+  return ts;
+}
+
 /** Generic AST walk; visit(node, parents) for every node with a string `type`. */
 function walk(node, visit, parents) {
   if (!node || typeof node.type !== 'string') return;
@@ -48,6 +60,79 @@ function importsFromAst(ast) {
   return Array.from(found, ([specifier, dynamic]) => ({ specifier, dynamic }));
 }
 
+const TS_FN_KINDS = (ts) => new Set([
+  ts.SyntaxKind.FunctionDeclaration, ts.SyntaxKind.FunctionExpression,
+  ts.SyntaxKind.ArrowFunction, ts.SyntaxKind.MethodDeclaration,
+  ts.SyntaxKind.Constructor, ts.SyntaxKind.GetAccessor, ts.SyntaxKind.SetAccessor,
+]);
+
+function tsIsDecision(ts, n) {
+  const K = ts.SyntaxKind;
+  switch (n.kind) {
+    case K.IfStatement: case K.ConditionalExpression: case K.ForStatement:
+    case K.ForInStatement: case K.ForOfStatement: case K.WhileStatement:
+    case K.DoStatement: case K.CaseClause: case K.CatchClause:
+      return true;
+    case K.BinaryExpression: {
+      const op = n.operatorToken.kind;
+      return op === K.AmpersandAmpersandToken || op === K.BarBarToken || op === K.QuestionQuestionToken;
+    }
+    default: return false;
+  }
+}
+
+function tsFnName(ts, n) {
+  if (n.name && n.name.text) return n.name.text;
+  if (n.kind === ts.SyntaxKind.Constructor) return 'constructor';
+  const p = n.parent;
+  if (p && ts.isVariableDeclaration(p) && ts.isIdentifier(p.name)) return p.name.text;
+  if (p && ts.isPropertyAssignment(p) && p.name && p.name.text) return p.name.text;
+  return '<anonymous>';
+}
+
+function parseTs(ts, relPath, source) {
+  const kind = /\.tsx$/i.test(relPath) ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const sf = ts.createSourceFile(relPath, source, ts.ScriptTarget.Latest, /*parents*/ true, kind);
+  const line = (pos) => sf.getLineAndCharacterOfPosition(pos).line + 1;
+  const fnKinds = TS_FN_KINDS(ts);
+  const imports = new Map();
+  const addImp = (spec, dynamic) => {
+    if (typeof spec !== 'string' || !spec) return;
+    if (imports.has(spec)) { if (!dynamic) imports.set(spec, false); }
+    else imports.set(spec, dynamic);
+  };
+  const records = new Map(); // fn node -> record
+  const fnStack = [];
+  const visit = (n) => {
+    const isFn = fnKinds.has(n.kind);
+    if (isFn) {
+      const rec = { id: null, name: tsFnName(ts, n), startLine: line(n.getStart(sf)), endLine: line(n.end), cc: 1 };
+      records.set(n, rec);
+      fnStack.push(rec);
+    } else if (tsIsDecision(ts, n) && fnStack.length) {
+      fnStack[fnStack.length - 1].cc++;
+    }
+    if ((ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) && n.moduleSpecifier &&
+        ts.isStringLiteral(n.moduleSpecifier)) addImp(n.moduleSpecifier.text, false);
+    if (ts.isCallExpression(n)) {
+      const arg = n.arguments[0];
+      if (n.expression.kind === ts.SyntaxKind.ImportKeyword && arg && ts.isStringLiteral(arg)) addImp(arg.text, true);
+      if (ts.isIdentifier(n.expression) && n.expression.text === 'require' && arg && ts.isStringLiteral(arg)) addImp(arg.text, false);
+    }
+    ts.forEachChild(n, visit);
+    if (isFn) fnStack.pop();
+  };
+  visit(sf);
+  const functions = Array.from(records.values());
+  for (const f of functions) f.id = `${relPath}#${f.name}@${f.startLine}`;
+  functions.sort((a, b) => a.startLine - b.startLine || a.id.localeCompare(b.id));
+  return {
+    imports: Array.from(imports, ([specifier, dynamic]) => ({ specifier, dynamic })),
+    functions,
+    parser: 'typescript',
+  };
+}
+
 function parse(relPath, source, ctx) {
   const isTs = /\.tsx?$/i.test(relPath);
   if (!isTs) {
@@ -56,7 +141,10 @@ function parse(relPath, source, ctx) {
     catch (_e) { return { imports: parseImports(source), functions: null, parser: 'regex' }; }
     return { imports: importsFromAst(ast), functions: functionsFromAst(ast, relPath), parser: 'acorn' };
   }
-  return { imports: parseImports(source), functions: null, parser: 'regex' }; // Task 3 replaces this
+  const ts = (ctx && ctx.loadTs ? ctx.loadTs : loadTs)(ctx.root);
+  if (!ts) return { imports: parseImports(source), functions: null, parser: 'regex' };
+  try { return parseTs(ts, relPath, source); }
+  catch (_e) { return { imports: parseImports(source), functions: null, parser: 'regex' }; }
 }
 
 const FN_TYPES = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
@@ -113,4 +201,4 @@ function functionsFromAst(ast, relPath) {
   return out;
 }
 
-module.exports = { parse, walk, parseAcorn };
+module.exports = { parse, walk, parseAcorn, loadTs };
