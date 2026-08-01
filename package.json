@@ -29,5 +29,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/fingerskier/topographer.git"
+  },
+  "dependencies": {
+    "acorn": "^8.18.0",
+    "acorn-jsx": "^5.3.2"
   }
 }
