@@ -61,7 +61,7 @@ function buildDataset({ functionsByFile, coverage, threshold = DEFAULT_THRESHOLD
   return records;
 }
 
-function buildAnnotations(records, threshold = DEFAULT_THRESHOLD) {
+function buildAnnotations(records) {
   const out = {};
   for (const r of records) {
     if (r.flags.includes('test_file')) continue; // excluded from roll-ups by default
@@ -69,7 +69,7 @@ function buildAnnotations(records, threshold = DEFAULT_THRESHOLD) {
     if (r.crap !== null) {
       // max, never mean — the non-linearity is the signal
       a.maxCrap = a.maxCrap === null ? r.crap : Math.max(a.maxCrap, r.crap);
-      if (r.crap > threshold) a.aboveThresholdCount++;
+      if (r.flags.includes('above_threshold')) a.aboveThresholdCount++;
       const kind = r.coverage.kind;
       a.coverageKind = a.coverageKind === null || a.coverageKind === kind ? kind : 'mixed';
     }
