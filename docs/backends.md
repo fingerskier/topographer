@@ -42,7 +42,7 @@ function parse(relPath, source, ctx) {
 
 - **`imports`** (array of `{ specifier, dynamic }`):
   - `specifier`: import path (e.g., `'./utils'`, `'react'`)
-  - `dynamic`: boolean — true for dynamic imports (`import()`, fallback `require()`), false for static imports
+  - `dynamic`: boolean — true only for dynamic imports (`import()` expressions), false for all static forms (ES6 import/export, `require()`)
   - Both static and dynamic imports are collected; static wins (duplicate specifier demoted to dynamic=false)
 
 - **`functions`** (array of function records, or null):
@@ -82,7 +82,7 @@ A decision point adds 1 to cyclomatic complexity. For each of these, increment t
 - Loops: `for`, `for...in`, `for...of`, `while`, `do...while`
 - `switch` case clauses (not `default`)
 - `catch` clauses
-- Logical operators: `&&`, `||`, `??` (when they appear as expressions, not just in conditionals)
+- Logical operators: `&&`, `||`, `??`
 
 **Nested functions are independent**: a decision inside a nested function does not increment its parent's CC.
 
@@ -96,7 +96,7 @@ When AST parsing fails (acorn throws, TypeScript compiler throws, or TypeScript 
 
 This fallback preserves import edges in the graph but excludes the file from CRAP scoring.
 
-Files in `manifest.regexFallback` can still appear in the map.html (with no function annotations) and in topo.json (functions: null).
+Files in `manifest.regexFallback` can still appear in the map.html (with no function annotations) and contribute to the graph in topo.json.
 
 ## Manifest
 
@@ -110,7 +110,7 @@ After parsing all files, the graph includes a `manifest` object:
 }
 ```
 
-These are in the `topo.json` output and diagnostic information in the CLI output.
+The manifest is included in the `topo.json` output; CLI stdout prints only nodes, edges, git status, and CRAP statistics.
 
 ## Adding a New Backend
 

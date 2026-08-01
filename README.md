@@ -45,7 +45,7 @@ If it is a git repo, the current state is "this commit".
 
 When `--crap` is enabled, the risk view highlights files by function complexity and coverage:
 
-- **Halo color intensity** (orange to red) — Maximum CRAP score in the file (higher = more risky)
-- **Dashed halo** — File has functions with no coverage data (null coverage is distinct from 0% coverage)
+- **Heat halo** (color #e25822) — Size and opacity scale with the maximum CRAP score in the file (larger and more opaque = more risky)
+- **Gray dashed halo** — File has functions with no coverage data (null coverage is distinct from 0% coverage)
 
-Hover over a node to see the file's max CRAP and count of above-threshold functions. Functions without coverage data are visibly separate from those with 0% coverage, making it clear where coverage is missing vs. explicitly low.
+Collapsed nodes display a badge showing the file's max CRAP score and count of above-threshold functions. Functions without coverage data are visibly separate from those with 0% coverage, making it clear where coverage is missing vs. explicitly low.
