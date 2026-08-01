@@ -1,0 +1,13 @@
+{
+  "/repo/src/a.js": {
+    "path": "/repo/src/a.js",
+    "statementMap": {
+      "0": { "start": { "line": 2 }, "end": { "line": 2 } },
+      "1": { "start": { "line": 3 }, "end": { "line": 3 } },
+      "2": { "start": { "line": 8 }, "end": { "line": 8 } }
+    },
+    "s": { "0": 5, "1": 0, "2": 1 },
+    "branchMap": { "0": { "loc": { "start": { "line": 2 } }, "locations": [ { "start": { "line": 2 } }, { "start": { "line": 2 } } ] } },
+    "b": { "0": [5, 0] }
+  }
+}
