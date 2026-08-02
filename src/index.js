@@ -15,28 +15,34 @@ const { buildDataset, buildAnnotations } = require('./crap.js');
 /**
  * Build the dependency graph for a repo and write it to an HTML file.
  *
- * @param {{ root: string, outPath: string, crap?: boolean, coveragePath?: string|null }} options
- * @returns {{ outPath: string, graph: object, stats: object }}
+ * All generated assets land as siblings of `outPath`, which defaults to
+ * `<root>/.topographer/map.html`.
+ *
+ * @param {{ root: string, outPath?: string|null, crap?: boolean, coveragePath?: string|null }} options
+ * @returns {{ outPath: string, topoPath: string, datasetPath: string|null, written: string[], graph: object, stats: object }}
  */
-function run({ root, outPath, crap = true, coveragePath = null }) {
+function run({ root, outPath = null, crap = true, coveragePath = null }) {
   if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
     throw new Error(`not a directory: ${root}`);
   }
+  if (!outPath) outPath = path.join(root, '.topographer', 'map.html');
+  const outDir = path.dirname(outPath);
+  fs.mkdirSync(outDir, { recursive: true });
 
   const graph = buildGraph(root);
 
   let annotations = null;
   let crapStats = null;
+  let datasetPath = null;
   if (crap) {
     const covFile = resolveCoverage(root, coveragePath); // throws if explicit path given and unusable
     const coverage = covFile ? loadCoverage(covFile, root) : null;
     const records = buildDataset({ functionsByFile: graph.functionsByFile, coverage });
     annotations = buildAnnotations(records);
 
-    const crapDir = path.join(path.dirname(outPath), '.crap');
-    fs.mkdirSync(crapDir, { recursive: true });
+    datasetPath = path.join(outDir, 'crap.jsonl');
     fs.writeFileSync(
-      path.join(crapDir, 'dataset.jsonl'),
+      datasetPath,
       records.map((r) => JSON.stringify(r)).join('\n') + '\n',
       'utf8'
     );
@@ -62,7 +68,7 @@ function run({ root, outPath, crap = true, coveragePath = null }) {
   const html = renderHtml(graph, { root, annotations });
   fs.writeFileSync(outPath, html, 'utf8');
 
-  const topoPath = path.join(path.dirname(outPath), 'topo.json');
+  const topoPath = path.join(outDir, 'topo.json');
   const topo = {
     nodes: graph.nodes,
     links: graph.links,
@@ -73,9 +79,14 @@ function run({ root, outPath, crap = true, coveragePath = null }) {
   if (annotations !== null) topo.annotations = annotations;
   fs.writeFileSync(topoPath, JSON.stringify(topo, null, 2) + '\n', 'utf8');
 
+  const written = [outPath, topoPath];
+  if (datasetPath) written.push(datasetPath);
+
   return {
     outPath,
     topoPath,
+    datasetPath,
+    written,
     graph,
     stats: {
       nodes: graph.nodes.length,

@@ -22,12 +22,16 @@ function runCli(args, cwd) {
   return spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8' });
 }
 
-test('CLI scores CRAP by default', () => {
+test('CLI scores CRAP by default, writes into .topographer, prints all paths', () => {
   const dir = tmpRepo({ 'a.js': 'function f(x) { return x ? 1 : 2; }\nmodule.exports = f;\n' });
   const res = runCli([dir], dir);
   assert.strictEqual(res.status, 0, res.stderr);
   assert.match(res.stdout, /CRAP:/);
-  assert.ok(fs.existsSync(path.join(dir, '.crap', 'dataset.jsonl')));
+  const outDir = path.join(dir, '.topographer');
+  for (const f of ['map.html', 'topo.json', 'crap.jsonl']) {
+    assert.ok(fs.existsSync(path.join(outDir, f)), f);
+    assert.ok(res.stdout.includes(f), `stdout lists ${f}`);
+  }
 });
 
 test('CLI --no-crap skips CRAP', () => {
@@ -35,7 +39,8 @@ test('CLI --no-crap skips CRAP', () => {
   const res = runCli(['--no-crap', dir], dir);
   assert.strictEqual(res.status, 0, res.stderr);
   assert.ok(!/CRAP:/.test(res.stdout));
-  assert.ok(!fs.existsSync(path.join(dir, '.crap')));
+  assert.ok(fs.existsSync(path.join(dir, '.topographer', 'map.html')));
+  assert.ok(!fs.existsSync(path.join(dir, '.topographer', 'crap.jsonl')));
 });
 
 test('CLI warns on zero coverage-path matches', () => {

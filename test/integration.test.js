@@ -42,6 +42,22 @@ test('run writes topo.json next to map.html', () => {
   assert.ok(!('functionsByFile' in topo)); // internal Map, not serialized
 });
 
+test('run defaults all outputs into <root>/.topographer and returns written paths', () => {
+  const dir = tmpRepo({ 'a.js': 'function f(x) { return x ? 1 : 2; }\nmodule.exports = f;\n' });
+  const r = run({ root: dir });
+  const outDir = path.join(dir, '.topographer');
+  assert.strictEqual(r.outPath, path.join(outDir, 'map.html'));
+  assert.strictEqual(r.topoPath, path.join(outDir, 'topo.json'));
+  assert.strictEqual(r.datasetPath, path.join(outDir, 'crap.jsonl'));
+  assert.deepStrictEqual(r.written, [r.outPath, r.topoPath, r.datasetPath]);
+  for (const p of r.written) assert.ok(fs.existsSync(p), p);
+
+  const dir2 = tmpRepo({ 'a.js': 'function f() {}\n' });
+  const r2 = run({ root: dir2, crap: false });
+  assert.strictEqual(r2.datasetPath, null);
+  assert.deepStrictEqual(r2.written, [r2.outPath, r2.topoPath]);
+});
+
 test('--crap end-to-end: dataset.jsonl + annotations, deterministic', () => {
   const dir = tmpRepo({
     'src/a.js': [
@@ -56,7 +72,7 @@ test('--crap end-to-end: dataset.jsonl + annotations, deterministic', () => {
   });
   const out = path.join(dir, 'map.html');
   const r1 = run({ root: dir, outPath: out, crap: true, coveragePath: null });
-  const jsonl = fs.readFileSync(path.join(dir, '.crap', 'dataset.jsonl'), 'utf8');
+  const jsonl = fs.readFileSync(path.join(dir, 'crap.jsonl'), 'utf8');
   const records = jsonl.trim().split('\n').map(JSON.parse);
   assert.strictEqual(records.length, 1);
   assert.strictEqual(records[0].cc, 4);          // base + if + if + &&
@@ -66,7 +82,7 @@ test('--crap end-to-end: dataset.jsonl + annotations, deterministic', () => {
   assert.strictEqual(topo.annotations['src/a.js'].maxCrap, 20);
   // determinism: run again, byte-identical outputs
   const jsonl2 = (run({ root: dir, outPath: out, crap: true, coveragePath: null }),
-                  fs.readFileSync(path.join(dir, '.crap', 'dataset.jsonl'), 'utf8'));
+                  fs.readFileSync(path.join(dir, 'crap.jsonl'), 'utf8'));
   assert.strictEqual(jsonl, jsonl2);
   assert.ok(r1.stats.crap.coverageFile.endsWith('lcov.info'));
 });
@@ -74,7 +90,7 @@ test('--crap end-to-end: dataset.jsonl + annotations, deterministic', () => {
 test('--crap with no coverage anywhere: nulls, not zeros', () => {
   const dir = tmpRepo({ 'a.js': 'function f(x) { return x ? 1 : 2; }\n' });
   run({ root: dir, outPath: path.join(dir, 'map.html'), crap: true, coveragePath: null });
-  const records = fs.readFileSync(path.join(dir, '.crap', 'dataset.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  const records = fs.readFileSync(path.join(dir, 'crap.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
   assert.strictEqual(records[0].crap, null);
   assert.ok(records[0].flags.includes('no_coverage_data'));
 });
@@ -92,12 +108,12 @@ test('crap runs by default; crap: false skips it', () => {
   const out = path.join(dir, 'map.html');
   const r = run({ root: dir, outPath: out });
   assert.ok(r.stats.crap, 'stats.crap present by default');
-  assert.ok(fs.existsSync(path.join(dir, '.crap', 'dataset.jsonl')));
+  assert.ok(fs.existsSync(path.join(dir, 'crap.jsonl')));
 
   const dir2 = tmpRepo({ 'a.js': 'function f(x) { return x ? 1 : 2; }\nmodule.exports = f;\n' });
   const r2 = run({ root: dir2, outPath: path.join(dir2, 'map.html'), crap: false });
   assert.strictEqual(r2.stats.crap, null);
-  assert.ok(!fs.existsSync(path.join(dir2, '.crap')));
+  assert.ok(!fs.existsSync(path.join(dir2, 'crap.jsonl')));
 });
 
 test('warns when coverage file matches zero scanned files', () => {

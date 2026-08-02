@@ -2,7 +2,10 @@ node_modules/
 package-lock.json
 
 # Generated output
+.topographer/
 map.html
+topo.json
+crap.jsonl
 
 # Scratch / local artifacts
 scratch-*

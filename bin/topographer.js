@@ -5,7 +5,7 @@ const path = require('path');
 const { run } = require('../src/index.js');
 
 function parseArgs(argv) {
-  const opts = { root: process.cwd(), out: 'map.html', crap: true };
+  const opts = { root: process.cwd(), out: null, crap: true };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     switch (arg) {
@@ -52,7 +52,8 @@ Usage:
   npx topographer [options] [root]
 
 Options:
-  -o, --out <file>    Output HTML file (default: map.html)
+  -o, --out <file>    Output HTML file (default: .topographer/map.html under
+                      root; topo.json and crap.jsonl land beside it)
   -r, --root <dir>    Repo root to scan (default: current directory)
   --no-crap           Skip CRAP annotation (CC² × (1−cov)³ + CC; on by default)
   --coverage <file>   Coverage report (Istanbul coverage-final.json or LCOV);
@@ -83,10 +84,12 @@ function main() {
   }
 
   const root = path.resolve(opts.root);
-  const outPath = path.isAbsolute(opts.out) ? opts.out : path.join(root, opts.out);
+  const outPath = opts.out
+    ? (path.isAbsolute(opts.out) ? opts.out : path.join(root, opts.out))
+    : null; // run() defaults to <root>/.topographer/map.html
 
   try {
-    const { outPath: written, stats } = run({
+    const { written, stats } = run({
       root,
       outPath,
       crap: !!opts.crap,
@@ -95,8 +98,10 @@ function main() {
     if (stats.crap && stats.crap.warning) {
       process.stderr.write(`topographer: warning: ${stats.crap.warning}\n`);
     }
+    const rel = (p) => path.relative(process.cwd(), p) || p;
     process.stdout.write(
-      `topographer: wrote ${path.relative(process.cwd(), written) || written}\n` +
+      `topographer: wrote\n` +
+        written.map((p) => `  ${rel(p)}\n`).join('') +
         `  ${stats.nodes} files, ${stats.edges} dependencies` +
         (stats.git ? ` (git repo)` : ` (not a git repo — everything treated as this commit)`) +
         `\n` +

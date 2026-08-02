@@ -25,7 +25,7 @@ npx topographer [options] [root]
 ```
 
 Options:
-- `-o, --out <file>` — Output HTML file (default: map.html)
+- `-o, --out <file>` — Output HTML file (default: `.topographer/map.html` under root; `topo.json` and `crap.jsonl` land beside it)
 - `-r, --root <dir>` — Repo root to scan (default: current directory)
 - `--no-crap` — Skip CRAP annotation (CC² × (1−cov)³ + CC; on by default)
 - `--coverage <file>` — Coverage report (Istanbul coverage-final.json or LCOV); default: auto-detect under coverage/
@@ -39,7 +39,9 @@ If it is a git repo, the current state is "this commit".
 
 - **`map.html`** — Interactive visualization of the dependency graph with optional CRAP risk view overlay.
 - **`topo.json`** — Serialized graph (nodes, links, git status, manifest, and annotations unless `--no-crap`).
-- **`.crap/dataset.jsonl`** — Per-function CRAP scores and metadata (one JSON record per line, sorted by CRAP score descending, no-coverage functions last). Skipped with `--no-crap`.
+- **`crap.jsonl`** — Per-function CRAP scores and metadata (one JSON record per line, sorted by CRAP score descending, no-coverage functions last). Skipped with `--no-crap`.
+
+All three land in `./.topographer/` by default (or beside the `-o` target), and the CLI prints each written path on completion.
 
 ## Risk View
 
