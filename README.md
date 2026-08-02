@@ -27,7 +27,7 @@ npx topographer [options] [root]
 Options:
 - `-o, --out <file>` — Output HTML file (default: map.html)
 - `-r, --root <dir>` — Repo root to scan (default: current directory)
-- `--crap` — Annotate functions with CRAP scores (CC² × (1−cov)³ + CC)
+- `--no-crap` — Skip CRAP annotation (CC² × (1−cov)³ + CC; on by default)
 - `--coverage <file>` — Coverage report (Istanbul coverage-final.json or LCOV); default: auto-detect under coverage/
 - `-v, --version` — Print version and exit
 - `-h, --help` — Show this help
@@ -38,12 +38,12 @@ If it is a git repo, the current state is "this commit".
 ## Outputs
 
 - **`map.html`** — Interactive visualization of the dependency graph with optional CRAP risk view overlay.
-- **`topo.json`** — Serialized graph (nodes, links, git status, manifest, and annotations if `--crap` was used).
-- **`.crap/dataset.jsonl`** — Per-function CRAP scores and metadata (one JSON record per line, sorted by CRAP score descending, no-coverage functions last). Written only when `--crap` is used.
+- **`topo.json`** — Serialized graph (nodes, links, git status, manifest, and annotations unless `--no-crap`).
+- **`.crap/dataset.jsonl`** — Per-function CRAP scores and metadata (one JSON record per line, sorted by CRAP score descending, no-coverage functions last). Skipped with `--no-crap`.
 
 ## Risk View
 
-When `--crap` is enabled, the risk view highlights files by function complexity and coverage:
+CRAP annotation runs by default (skip with `--no-crap`). The risk view highlights files by function complexity and coverage — click the Risk toggle in the map to enable it:
 
 - **Heat halo** (color #e25822) — Size and opacity scale with the maximum CRAP score in the file (larger and more opaque = more risky)
 - **Gray dashed halo** — File has no numeric CRAP score at all (every function lacks coverage data); a file with even one scored function gets a heat halo instead. Null coverage is distinct from 0% coverage.

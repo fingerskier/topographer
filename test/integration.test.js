@@ -87,7 +87,43 @@ test('explicit bad --coverage path throws with hint', () => {
   );
 });
 
-test('map.html embeds annotations and risk toggle only when --crap', () => {
+test('crap runs by default; crap: false skips it', () => {
+  const dir = tmpRepo({ 'a.js': 'function f(x) { return x ? 1 : 2; }\nmodule.exports = f;\n' });
+  const out = path.join(dir, 'map.html');
+  const r = run({ root: dir, outPath: out });
+  assert.ok(r.stats.crap, 'stats.crap present by default');
+  assert.ok(fs.existsSync(path.join(dir, '.crap', 'dataset.jsonl')));
+
+  const dir2 = tmpRepo({ 'a.js': 'function f(x) { return x ? 1 : 2; }\nmodule.exports = f;\n' });
+  const r2 = run({ root: dir2, outPath: path.join(dir2, 'map.html'), crap: false });
+  assert.strictEqual(r2.stats.crap, null);
+  assert.ok(!fs.existsSync(path.join(dir2, '.crap')));
+});
+
+test('warns when coverage file matches zero scanned files', () => {
+  const dir = tmpRepo({
+    'src/a.ts': 'export function f(x: number) { return x ? 1 : 2; }\n',
+    'coverage/lcov.info': ['SF:src/a.js', 'DA:1,1', 'end_of_record', ''].join('\n'),
+  });
+  const r = run({ root: dir, outPath: path.join(dir, 'map.html') });
+  assert.ok(r.stats.crap.warning, 'warning present');
+  assert.match(r.stats.crap.warning, /matched 0/i);
+
+  // matching coverage: no warning
+  const dir2 = tmpRepo({
+    'src/a.js': 'function f(x) { return x ? 1 : 2; }\nmodule.exports = f;\n',
+    'coverage/lcov.info': ['SF:src/a.js', 'DA:1,1', 'end_of_record', ''].join('\n'),
+  });
+  const r2 = run({ root: dir2, outPath: path.join(dir2, 'map.html') });
+  assert.strictEqual(r2.stats.crap.warning, null);
+
+  // no coverage file at all: no mismatch warning
+  const dir3 = tmpRepo({ 'a.js': 'function f() {}\n' });
+  const r3 = run({ root: dir3, outPath: path.join(dir3, 'map.html') });
+  assert.strictEqual(r3.stats.crap.warning, null);
+});
+
+test('map.html embeds annotations and risk toggle only when crap enabled', () => {
   const dir = tmpRepo({
     'src/a.js': 'function f(x) { return x ? 1 : 2; }\nmodule.exports = f;\n',
     'coverage/lcov.info': ['SF:src/a.js', 'DA:1,1', 'end_of_record', ''].join('\n'),
@@ -99,7 +135,7 @@ test('map.html embeds annotations and risk toggle only when --crap', () => {
   assert.ok(html.includes('riskToggle'));
   assert.ok(html.includes('class="halo"') || html.includes("'halo'") || html.includes('"halo"'));
 
-  run({ root: dir, outPath: out }); // without crap
+  run({ root: dir, outPath: out, crap: false }); // crap disabled
   const plain = fs.readFileSync(out, 'utf8');
   assert.ok(!plain.includes('riskToggle'));
 });

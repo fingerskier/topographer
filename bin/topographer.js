@@ -5,7 +5,7 @@ const path = require('path');
 const { run } = require('../src/index.js');
 
 function parseArgs(argv) {
-  const opts = { root: process.cwd(), out: 'map.html' };
+  const opts = { root: process.cwd(), out: 'map.html', crap: true };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     switch (arg) {
@@ -25,8 +25,11 @@ function parseArgs(argv) {
       case '--root':
         opts.root = argv[++i];
         break;
-      case '--crap':
+      case '--crap': // accepted for back-compat; CRAP is on by default
         opts.crap = true;
+        break;
+      case '--no-crap':
+        opts.crap = false;
         break;
       case '--coverage':
         opts.coverage = argv[++i];
@@ -51,7 +54,7 @@ Usage:
 Options:
   -o, --out <file>    Output HTML file (default: map.html)
   -r, --root <dir>    Repo root to scan (default: current directory)
-  --crap              Annotate functions with CRAP scores (CC² × (1−cov)³ + CC)
+  --no-crap           Skip CRAP annotation (CC² × (1−cov)³ + CC; on by default)
   --coverage <file>   Coverage report (Istanbul coverage-final.json or LCOV);
                       default: auto-detect under coverage/
   -v, --version       Print version and exit
@@ -89,6 +92,9 @@ function main() {
       crap: !!opts.crap,
       coveragePath: opts.coverage ? path.resolve(opts.coverage) : null,
     });
+    if (stats.crap && stats.crap.warning) {
+      process.stderr.write(`topographer: warning: ${stats.crap.warning}\n`);
+    }
     process.stdout.write(
       `topographer: wrote ${path.relative(process.cwd(), written) || written}\n` +
         `  ${stats.nodes} files, ${stats.edges} dependencies` +

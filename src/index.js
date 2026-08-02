@@ -18,7 +18,7 @@ const { buildDataset, buildAnnotations } = require('./crap.js');
  * @param {{ root: string, outPath: string, crap?: boolean, coveragePath?: string|null }} options
  * @returns {{ outPath: string, graph: object, stats: object }}
  */
-function run({ root, outPath, crap = false, coveragePath = null }) {
+function run({ root, outPath, crap = true, coveragePath = null }) {
   if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
     throw new Error(`not a directory: ${root}`);
   }
@@ -40,11 +40,22 @@ function run({ root, outPath, crap = false, coveragePath = null }) {
       records.map((r) => JSON.stringify(r)).join('\n') + '\n',
       'utf8'
     );
+    let warning = null;
+    if (coverage) {
+      let matched = 0;
+      for (const key of coverage.keys()) if (graph.functionsByFile.has(key)) matched++;
+      if (matched === 0) {
+        warning =
+          `coverage file ${covFile} matched 0 of ${coverage.size} covered paths against scanned sources ` +
+          `(compiled .js paths vs .ts sources?) — all functions unscored`;
+      }
+    }
     crapStats = {
       functions: records.length,
       scored: records.filter((r) => r.crap !== null).length,
       aboveThreshold: records.filter((r) => r.flags.includes('above_threshold')).length,
       coverageFile: covFile,
+      warning,
     };
   }
 
